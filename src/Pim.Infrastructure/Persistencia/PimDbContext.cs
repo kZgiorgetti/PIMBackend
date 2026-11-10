@@ -45,6 +45,7 @@ public class PimDbContext : DbContext
 
     protected override void OnModelCreating(ModelBuilder mb)
     {
+        mb.HasDefaultSchema("pim");
         mb.ApplyConfigurationsFromAssembly(typeof(PimDbContext).Assembly);
         mb.Entity<ResumoColaboradorRow>().HasNoKey().ToView(null);
         mb.Entity<TarefaAtrasadaRow>().HasNoKey().ToView(null);
@@ -52,9 +53,9 @@ public class PimDbContext : DbContext
 
     protected override void ConfigureConventions(ModelConfigurationBuilder cb)
     {
-        // Datas sempre em UTC (o SQL Server devolve Kind=Unspecified)
-        cb.Properties<DateTime>().HaveConversion<UtcConverter>().HaveColumnType("datetime2(3)");
-        cb.Properties<DateTime?>().HaveConversion<UtcNullableConverter>().HaveColumnType("datetime2(3)");
+        // Datas sempre em UTC: o Npgsql só grava DateTime Kind=Utc em timestamptz
+        cb.Properties<DateTime>().HaveConversion<UtcConverter>().HaveColumnType("timestamptz");
+        cb.Properties<DateTime?>().HaveConversion<UtcNullableConverter>().HaveColumnType("timestamptz");
     }
 
     // Nos testes (InMemory) não há trigger: simula a atualização de DataAtualizacao.
@@ -71,10 +72,14 @@ public class PimDbContext : DbContext
 
 public class UtcConverter : Microsoft.EntityFrameworkCore.Storage.ValueConversion.ValueConverter<DateTime, DateTime>
 {
-    public UtcConverter() : base(v => v, v => DateTime.SpecifyKind(v, DateTimeKind.Utc)) { }
+    public UtcConverter() : base(
+        v => v.Kind == DateTimeKind.Utc ? v : (v.Kind == DateTimeKind.Local ? v.ToUniversalTime() : DateTime.SpecifyKind(v, DateTimeKind.Utc)),
+        v => DateTime.SpecifyKind(v, DateTimeKind.Utc)) { }
 }
 
 public class UtcNullableConverter : Microsoft.EntityFrameworkCore.Storage.ValueConversion.ValueConverter<DateTime?, DateTime?>
 {
-    public UtcNullableConverter() : base(v => v, v => v.HasValue ? DateTime.SpecifyKind(v.Value, DateTimeKind.Utc) : v) { }
+    public UtcNullableConverter() : base(
+        v => v.HasValue ? (v.Value.Kind == DateTimeKind.Utc ? v : (v.Value.Kind == DateTimeKind.Local ? v.Value.ToUniversalTime() : DateTime.SpecifyKind(v.Value, DateTimeKind.Utc))) : v,
+        v => v.HasValue ? DateTime.SpecifyKind(v.Value, DateTimeKind.Utc) : v) { }
 }

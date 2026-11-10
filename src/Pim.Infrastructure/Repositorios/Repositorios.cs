@@ -1,5 +1,5 @@
-using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
+using Npgsql;
 using Pim.Application.Dtos;
 using Pim.Application.Excecoes;
 using Pim.Application.Interfaces;
@@ -19,19 +19,13 @@ public class UnitOfWork : IUnitOfWork
     {
         if (!_db.Database.IsRelational() || usuarioId is null) return await _db.SaveChangesAsync(ct);
 
-        // Mantém a mesma conexão para o SESSION_CONTEXT ser visto pela trigger de histórico.
-        await _db.Database.OpenConnectionAsync(ct);
-        try
-        {
-            await _db.Database.ExecuteSqlInterpolatedAsync($"EXEC sys.sp_set_session_context @key=N'UsuarioId', @value={usuarioId}", ct);
-            return await _db.SaveChangesAsync(ct);
-        }
-        finally
-        {
-            try { await _db.Database.ExecuteSqlRawAsync("EXEC sys.sp_set_session_context @key=N'UsuarioId', @value=NULL", CancellationToken.None); }
-            catch { /* conexão pode já ter falhado */ }
-            await _db.Database.CloseConnectionAsync();
-        }
+        // O usuário vai para a trigger de histórico via configuração local da transação (set_config(..., true)),
+        // então ela só vale nesta transação: seguro com pool de conexões.
+        await using var tx = await _db.Database.BeginTransactionAsync(ct);
+        await _db.Database.ExecuteSqlInterpolatedAsync($"SELECT set_config('app.usuario_id', {usuarioId.Value.ToString()}, true)", ct);
+        var n = await _db.SaveChangesAsync(ct);
+        await tx.CommitAsync(ct);
+        return n;
     }
 }
 
@@ -83,8 +77,8 @@ public class ColaboradorRepository : RepositorioBase<Colaborador>, IColaboradorR
             Db.Colaboradores.Remove(c); await Db.SaveChangesAsync(ct); return ResultadoRemocao.Excluido;
         }
 
-        // DELETE direto: a trigger INSTEAD OF DELETE decide entre excluir e inativar (EF Remove() falharia por 0 linhas afetadas).
-        await Db.Database.ExecuteSqlInterpolatedAsync($"DELETE FROM dbo.Colaboradores WHERE Id = {id}", ct);
+        // DELETE direto: a trigger BEFORE DELETE decide entre excluir e inativar (EF Remove() falharia por 0 linhas afetadas quando a trigger cancela).
+        await Db.Database.ExecuteSqlInterpolatedAsync($"DELETE FROM pim.colaboradores WHERE id = {id}", ct);
         Db.ChangeTracker.Clear();
         var existe = await Db.Colaboradores.AsNoTracking().AnyAsync(c => c.Id == id, ct);
         return existe ? ResultadoRemocao.Inativado : ResultadoRemocao.Excluido;
@@ -154,8 +148,8 @@ public class TarefaRepository : RepositorioBase<Tarefa>, ITarefaRepository
             await Db.SaveChangesAsync(ct);
             return;
         }
-        try { await Db.Database.ExecuteSqlInterpolatedAsync($"EXEC dbo.sp_ConcluirTarefa @TarefaId={tarefaId}, @UsuarioId={usuarioId}", ct); }
-        catch (SqlException ex) { throw TraduzirErroProcedure(ex); }
+        try { await Db.Database.ExecuteSqlInterpolatedAsync($"CALL pim.sp_concluir_tarefa({tarefaId}, {usuarioId}::integer)", ct); }
+        catch (PostgresException ex) { throw TraduzirErroProcedure(ex); }
         Db.ChangeTracker.Clear();   // a procedure alterou a linha fora do rastreamento do EF
     }
 
@@ -168,8 +162,8 @@ public class TarefaRepository : RepositorioBase<Tarefa>, ITarefaRepository
             await Db.SaveChangesAsync(ct);
             return;
         }
-        try { await Db.Database.ExecuteSqlInterpolatedAsync($"EXEC dbo.sp_ReatribuirTarefa @TarefaId={tarefaId}, @NovoColaboradorId={novoColaboradorId}, @UsuarioId={usuarioId}", ct); }
-        catch (SqlException ex) { throw TraduzirErroProcedure(ex); }
+        try { await Db.Database.ExecuteSqlInterpolatedAsync($"CALL pim.sp_reatribuir_tarefa({tarefaId}, {novoColaboradorId}::integer, {usuarioId}::integer)", ct); }
+        catch (PostgresException ex) { throw TraduzirErroProcedure(ex); }
         Db.ChangeTracker.Clear();
     }
 
@@ -192,13 +186,13 @@ public class TarefaRepository : RepositorioBase<Tarefa>, ITarefaRepository
         return await q.OrderBy(t => t.DataAtualizacao).ThenBy(t => t.Id).ToListAsync(ct);
     }
 
-    // 50001 não encontrada | 50002 excluída | 50003 já concluída | 50004 colaborador inválido
-    private static Exception TraduzirErroProcedure(SqlException ex) => ex.Number switch
+    // PM001 não encontrada | PM002 excluída | PM003 já concluída | PM004 colaborador inválido (SQLSTATE das procedures)
+    private static Exception TraduzirErroProcedure(PostgresException ex) => ex.SqlState switch
     {
-        50001 => new NotFoundException(ex.Message),
-        50002 => new RegraDeNegocioException(ex.Message),
-        50003 => new ConflictException(ex.Message),
-        50004 => new RegraDeNegocioException(ex.Message),
+        "PM001" => new NotFoundException(ex.MessageText),
+        "PM002" => new RegraDeNegocioException(ex.MessageText),
+        "PM003" => new ConflictException(ex.MessageText),
+        "PM004" => new RegraDeNegocioException(ex.MessageText),
         _ => ex
     };
 }
@@ -221,7 +215,7 @@ public class RelatorioRepository : IRelatorioRepository
                     ts.Count(t => t.Status == StatusTarefa.EmAndamento), ts.Count(t => t.Status == StatusTarefa.Concluida));
             }).ToList();
         }
-        var rows = await _db.ResumoColaboradores.FromSqlRaw("EXEC dbo.sp_ResumoTarefasPorColaborador").AsNoTracking().ToListAsync(ct);
+        var rows = await _db.ResumoColaboradores.FromSqlRaw("SELECT * FROM pim.sp_resumo_tarefas_por_colaborador()").AsNoTracking().ToListAsync(ct);
         return rows.Select(r => new ResumoColaboradorResponse(r.ColaboradorId, r.ColaboradorNome, r.Total, r.Pendentes, r.EmAndamento, r.Concluidas)).ToList();
     }
 
@@ -236,7 +230,7 @@ public class RelatorioRepository : IRelatorioRepository
             return lista.Select(t => new TarefaAtrasadaResponse(t.Id, t.Titulo, t.Status.ToString(), t.Prioridade.ToString(),
                 t.DataPrazo!.Value, (int)(agora - t.DataPrazo.Value).TotalDays, t.ColaboradorId, t.Colaborador?.Nome, t.EquipeId, t.Equipe?.Nome)).ToList();
         }
-        var rows = await _db.TarefasAtrasadasRows.FromSqlRaw("EXEC dbo.sp_TarefasAtrasadas").AsNoTracking().ToListAsync(ct);
+        var rows = await _db.TarefasAtrasadasRows.FromSqlRaw("SELECT * FROM pim.sp_tarefas_atrasadas()").AsNoTracking().ToListAsync(ct);
         return rows.Select(r => new TarefaAtrasadaResponse(r.Id, r.Titulo, r.Status, r.Prioridade, r.DataPrazo, r.DiasAtraso,
             r.ColaboradorId, r.ColaboradorNome, r.EquipeId, r.EquipeNome)).ToList();
     }

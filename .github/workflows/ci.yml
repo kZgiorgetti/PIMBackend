@@ -26,18 +26,21 @@ jobs:
   database-scripts:
     runs-on: ubuntu-latest
     services:
-      sqlserver:
-        image: mcr.microsoft.com/mssql/server:2022-latest
+      postgres:
+        image: postgres:16
         env:
-          ACCEPT_EULA: "Y"
-          MSSQL_SA_PASSWORD: "Ci_Senha#12345"
-        ports: ["1433:1433"]
+          POSTGRES_PASSWORD: ci_senha
+          POSTGRES_DB: pim
+        ports: ["5432:5432"]
         options: >-
-          --health-cmd "/opt/mssql-tools18/bin/sqlcmd -C -S localhost -U sa -P Ci_Senha#12345 -Q 'SELECT 1'"
-          --health-interval 10s --health-timeout 5s --health-retries 20
+          --health-cmd "pg_isready -U postgres" --health-interval 5s --health-timeout 5s --health-retries 20
+    env:
+      PGPASSWORD: ci_senha
     steps:
       - uses: actions/checkout@v4
       - name: Executa pim_completo.sql duas vezes (idempotência)
         run: |
-          docker run --rm --network host -v "$PWD/database:/scripts:ro" mcr.microsoft.com/mssql-tools \
-            /bin/bash -c '/opt/mssql-tools/bin/sqlcmd -S localhost -U sa -P "Ci_Senha#12345" -I -b -i /scripts/pim_completo.sql && /opt/mssql-tools/bin/sqlcmd -S localhost -U sa -P "Ci_Senha#12345" -I -b -i /scripts/pim_completo.sql'
+          psql -h localhost -U postgres -d pim -v ON_ERROR_STOP=1 -q -f database/pim_completo.sql
+          psql -h localhost -U postgres -d pim -v ON_ERROR_STOP=1 -q -f database/pim_completo.sql
+      - name: Teste de fumaça (triggers, procedures, restrições)
+        run: psql -h localhost -U postgres -d pim -v ON_ERROR_STOP=1 -q -f database/tests/smoke_test.sql

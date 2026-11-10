@@ -19,9 +19,8 @@ public static class DependencyInjection
         }
         else
         {
-            var cs = config.GetConnectionString("Pim") ?? config["DB_CONNECTION"]
-                ?? throw new InvalidOperationException("Defina a connection string 'ConnectionStrings:Pim'.");
-            services.AddDbContext<PimDbContext>(o => o.UseSqlServer(cs));
+            var cs = ConexaoBanco.Normalizar(config["DB_CONNECTION"] ?? config.GetConnectionString("Pim"));
+            services.AddDbContext<PimDbContext>(o => o.UseNpgsql(cs).UseSnakeCaseNamingConvention());
         }
 
         services.AddSingleton(JwtOptions.De(config));

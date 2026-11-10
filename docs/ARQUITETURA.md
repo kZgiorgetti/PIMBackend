@@ -20,7 +20,7 @@ flowchart LR
   subgraph "Pim.Infrastructure"
     I[EF Core · Repositórios · JWT · BCrypt]
   end
-  DB[(SQL Server<br/>tabelas · procedures · triggers)]
+  DB[(Supabase / PostgreSQL<br/>tabelas · procedures · triggers)]
   W --> C
   M --> C
   C --> S
@@ -57,4 +57,4 @@ sequenceDiagram
 - `[Authorize(Roles=...)]` nos controllers **e** verificação de posse no `TarefaService` (`GarantirAcesso`), com filtro forçado por `ColaboradorId` nas listagens e no sync.
 
 ## Banco de dados
-Regras que ficam no SQL Server: histórico de status (trigger), `DataAtualizacao` (triggers), inativação em vez de exclusão de colaborador com tarefas abertas (trigger), conclusão/reatribuição/relatórios (stored procedures). O `UnitOfWork` repassa o usuário ao banco via `SESSION_CONTEXT('UsuarioId')` para a trigger de histórico registrar quem alterou.
+PostgreSQL (Supabase), schema `pim`. Regras que ficam no banco: histórico de status (trigger), `data_atualizacao` (triggers), inativação em vez de exclusão de colaborador com tarefas abertas (trigger), conclusão/reatribuição (procedures) e relatórios (funções). O `UnitOfWork` repassa o usuário ao banco com `set_config('app.usuario_id', …, true)` na transação do salvamento para a trigger de histórico registrar quem alterou. A API conecta diretamente (role `postgres`); RLS bloqueia o acesso pela Data API do Supabase.

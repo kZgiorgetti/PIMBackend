@@ -13,7 +13,7 @@ public interface IRepository<T> where T : class
 
 public interface IUnitOfWork
 {
-    /// <summary>Persiste as alterações. Se informado, o usuário é repassado ao banco (SESSION_CONTEXT) para a trigger de histórico.</summary>
+    /// <summary>Persiste as alterações. Se informado, o usuário é repassado ao banco (set_config na transação) para a trigger de histórico.</summary>
     Task<int> SalvarAsync(int? usuarioId = null, CancellationToken ct = default);
 }
 

@@ -1,5 +1,5 @@
 {
-  "ConnectionStrings": { "Pim": "Server=localhost,1433;Database=PimDb;User Id=sa;Password=SUA_SENHA;TrustServerCertificate=True" },
+  "DB_CONNECTION": "postgresql://postgres.SEU_PROJECT_REF:SUA_SENHA@aws-0-REGIAO.pooler.supabase.com:5432/postgres",
   "JWT_SECRET": "chave-local-de-desenvolvimento-com-mais-de-32-caracteres",
   "ADMIN_EMAIL": "admin@pim.local",
   "ADMIN_PASSWORD": "Admin@12345",

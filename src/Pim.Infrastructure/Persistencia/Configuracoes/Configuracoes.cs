@@ -8,7 +8,7 @@ public class UsuarioConfig : IEntityTypeConfiguration<Usuario>
 {
     public void Configure(EntityTypeBuilder<Usuario> b)
     {
-        b.ToTable("Usuarios", t => t.HasTrigger("trg_Usuarios_DataAtualizacao"));
+        b.ToTable("usuarios", t => t.HasTrigger("trg_usuarios_data_atualizacao"));
         b.HasKey(x => x.Id);
         b.Property(x => x.Nome).HasMaxLength(150).IsRequired();
         b.Property(x => x.Email).HasMaxLength(200).IsRequired();
@@ -23,10 +23,10 @@ public class RefreshTokenConfig : IEntityTypeConfiguration<RefreshToken>
 {
     public void Configure(EntityTypeBuilder<RefreshToken> b)
     {
-        b.ToTable("RefreshTokens");
+        b.ToTable("refresh_tokens");
         b.HasKey(x => x.Id);
-        b.Property(x => x.TokenHash).HasMaxLength(64).IsFixedLength().IsRequired();
-        b.Property(x => x.SubstituidoPorHash).HasMaxLength(64).IsFixedLength();
+        b.Property(x => x.TokenHash).HasMaxLength(64).IsRequired();
+        b.Property(x => x.SubstituidoPorHash).HasMaxLength(64);
         b.HasIndex(x => x.TokenHash).IsUnique();
         b.HasOne<Usuario>().WithMany().HasForeignKey(x => x.UsuarioId).OnDelete(DeleteBehavior.NoAction);
     }
@@ -36,18 +36,18 @@ public class ColaboradorConfig : IEntityTypeConfiguration<Colaborador>
 {
     public void Configure(EntityTypeBuilder<Colaborador> b)
     {
-        b.ToTable("Colaboradores", t =>
+        b.ToTable("colaboradores", t =>
         {
-            t.HasTrigger("trg_Colaboradores_DataAtualizacao");
-            t.HasTrigger("trg_Colaboradores_BloqueiaExclusaoComTarefas");
+            t.HasTrigger("trg_colaboradores_data_atualizacao");
+            t.HasTrigger("trg_colaboradores_bloqueia_exclusao_com_tarefas");
         });
         b.HasKey(x => x.Id);
         b.Property(x => x.Nome).HasMaxLength(150).IsRequired();
         b.Property(x => x.Email).HasMaxLength(200);
         b.Property(x => x.Cargo).HasMaxLength(100);
         b.Property(x => x.DataAtualizacao).ValueGeneratedOnAddOrUpdate();
-        b.HasIndex(x => x.UsuarioId).IsUnique().HasFilter("[UsuarioId] IS NOT NULL").HasDatabaseName("UX_Colaboradores_UsuarioId");
-        b.HasIndex(x => x.Email).IsUnique().HasFilter("[Email] IS NOT NULL").HasDatabaseName("UX_Colaboradores_Email");
+        b.HasIndex(x => x.UsuarioId).IsUnique().HasFilter("usuario_id IS NOT NULL").HasDatabaseName("ux_colaboradores_usuario_id");
+        b.HasIndex(x => x.Email).IsUnique().HasFilter("email IS NOT NULL").HasDatabaseName("ux_colaboradores_email");
         b.HasOne(x => x.Usuario).WithMany().HasForeignKey(x => x.UsuarioId).OnDelete(DeleteBehavior.NoAction);
     }
 }
@@ -56,7 +56,7 @@ public class EquipeConfig : IEntityTypeConfiguration<Equipe>
 {
     public void Configure(EntityTypeBuilder<Equipe> b)
     {
-        b.ToTable("Equipes");
+        b.ToTable("equipes");
         b.HasKey(x => x.Id);
         b.Property(x => x.Nome).HasMaxLength(100).IsRequired();
         b.Property(x => x.Descricao).HasMaxLength(500);
@@ -68,7 +68,7 @@ public class EquipeColaboradorConfig : IEntityTypeConfiguration<EquipeColaborado
 {
     public void Configure(EntityTypeBuilder<EquipeColaborador> b)
     {
-        b.ToTable("EquipeColaboradores");
+        b.ToTable("equipe_colaboradores");
         b.HasKey(x => new { x.EquipeId, x.ColaboradorId });
         b.HasOne<Equipe>().WithMany(e => e.Membros).HasForeignKey(x => x.EquipeId).OnDelete(DeleteBehavior.Cascade);
         b.HasOne(x => x.Colaborador).WithMany(c => c.Equipes).HasForeignKey(x => x.ColaboradorId).OnDelete(DeleteBehavior.NoAction);
@@ -79,10 +79,10 @@ public class TarefaConfig : IEntityTypeConfiguration<Tarefa>
 {
     public void Configure(EntityTypeBuilder<Tarefa> b)
     {
-        b.ToTable("Tarefas", t =>
+        b.ToTable("tarefas", t =>
         {
-            t.HasTrigger("trg_Tarefas_Historico");
-            t.HasTrigger("trg_Tarefas_DataAtualizacao");
+            t.HasTrigger("trg_tarefas_historico");
+            t.HasTrigger("trg_tarefas_data_atualizacao");
         });
         b.HasKey(x => x.Id);
         b.Property(x => x.Titulo).HasMaxLength(200).IsRequired();
@@ -104,7 +104,7 @@ public class TarefaComentarioConfig : IEntityTypeConfiguration<TarefaComentario>
 {
     public void Configure(EntityTypeBuilder<TarefaComentario> b)
     {
-        b.ToTable("TarefaComentarios");
+        b.ToTable("tarefa_comentarios");
         b.HasKey(x => x.Id);
         b.Property(x => x.Texto).HasMaxLength(1000).IsRequired();
         b.HasOne(x => x.Usuario).WithMany().HasForeignKey(x => x.UsuarioId).OnDelete(DeleteBehavior.NoAction);
@@ -115,7 +115,7 @@ public class TarefaHistoricoConfig : IEntityTypeConfiguration<TarefaHistorico>
 {
     public void Configure(EntityTypeBuilder<TarefaHistorico> b)
     {
-        b.ToTable("TarefaHistorico");
+        b.ToTable("tarefa_historico");
         b.HasKey(x => x.Id);
         b.Property(x => x.StatusAnterior).HasConversion<string>().HasMaxLength(20);
         b.Property(x => x.StatusNovo).HasConversion<string>().HasMaxLength(20);

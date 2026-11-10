@@ -48,7 +48,8 @@ public class TarefaService
     public async Task<SyncResponse> SyncAsync(DateTime? atualizadoDesde, CancellationToken ct = default)
     {
         var desde = atualizadoDesde.HasValue ? NormalizarUtc(atualizadoDesde.Value) : (DateTime?)null;
-        var servidorEm = DateTime.UtcNow;
+        // margem de 5 s: tolera diferença de relógio entre API e banco (reenviar tarefas já vistas é inofensivo)
+        var servidorEm = DateTime.UtcNow.AddSeconds(-5);
         var itens = await _tarefas.SyncAsync(desde, ColaboradorForcado(), ct);
         return new SyncResponse(itens.Select(t => t.ParaResponse()).ToList(), servidorEm);
     }

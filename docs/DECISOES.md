@@ -1,28 +1,34 @@
 # Decisões técnicas
 
-- **Fonte da verdade do schema:** os scripts em `database/` (SQL Server). As migrations do EF Core devem espelhá-los; em caso de divergência, vale o SQL.
-- **Tabelas extras:** `RefreshTokens` e as colunas `TentativasFalhas`/`BloqueadoAte` em `Usuarios` (exigidas pela Fase 4: refresh com rotação e bloqueio de login).
-- **Perfis** são um `CHECK` em `Usuarios.Perfil`, não uma tabela.
+## Banco de dados
+- **PostgreSQL no Supabase** (migrado do SQL Server). Fonte da verdade do schema: os scripts em `database/` (idempotentes; `pim_completo.sql` roda do zero e pode rodar de novo). Teste: `database/tests/smoke_test.sql` (triggers, procedures, restrições; roda em transação com ROLLBACK).
+- **Schema `pim`** (não exposto pela Data API do Supabase) + **RLS ligado sem policies** + revogação para `anon`/`authenticated`. A API conecta com a role `postgres` (ignora RLS). O **Supabase Auth não é usado**: a autenticação é o JWT próprio da API.
+- **snake_case** no banco; o EF Core usa `EFCore.NamingConventions` (`UseSnakeCaseNamingConvention`). Nomes de tabela são definidos explicitamente nas configurações.
+- **Procedures × funções:** no PostgreSQL uma PROCEDURE não devolve linhas. `sp_concluir_tarefa` e `sp_reatribuir_tarefa` são procedures (`CALL`); os relatórios são FUNCTIONs `RETURNS TABLE` (`SELECT * FROM`). TRY/CATCH/THROW ⇒ `BEGIN … EXCEPTION … RAISE`.
+- **Erros de negócio** (SQLSTATE): `PM001` não encontrada (404), `PM002` tarefa excluída (422), `PM003` já concluída (409), `PM004` colaborador inválido (422).
+- **Usuário no histórico:** a API grava `set_config('app.usuario_id', id, true)` dentro da transação do `SaveChanges` (valor local à transação ⇒ seguro com pool); a trigger lê `current_setting('app.usuario_id', true)`.
+- **Exclusão de colaborador:** o PostgreSQL não tem `INSTEAD OF DELETE` em tabelas; usa-se `BEFORE DELETE` que inativa e retorna `NULL` (cancela o DELETE) quando há tarefas abertas. A API executa `DELETE` por SQL direto (`Remove()` do EF veria 0 linhas afetadas).
+- **`data_atualizacao`** usa `clock_timestamp()` (e não `now()`, que é o início da transação). O sync mobile devolve `servidorEm` com margem de 5 s para tolerar diferença de relógio e transações longas; reenviar tarefas já vistas é inofensivo.
+- **Tabelas extras:** `refresh_tokens` e as colunas `tentativas_falhas`/`bloqueado_ate` em `usuarios` (refresh com rotação e bloqueio de login). Perfis são `CHECK` em `usuarios.perfil`.
 - **Admin inicial** não é inserido pelo SQL: a API cria no primeiro start (`ADMIN_EMAIL`/`ADMIN_PASSWORD`), pois o hash BCrypt não deve ser gerado em SQL.
-- **Status** normalizados: `Pendente`, `EmAndamento`, `Concluida` (legado: `pendente`, `completed`). Prioridade: `Baixa`, `Media`, `Alta`, `Urgente`.
-- **Usuário no histórico:** a trigger lê `SESSION_CONTEXT('UsuarioId')`; a API deve defini-lo (`sp_set_session_context`) antes de atualizar status fora das procedures.
-- **EF Core + triggers:** as entidades `Tarefa`, `Colaborador` e `Usuario` precisam de `ToTable(t => t.HasTrigger(...))`. A exclusão de `Colaborador` NÃO deve usar `Remove()` (a trigger INSTEAD OF DELETE faz o EF ver 0 linhas afetadas); usar `ExecuteSql` com `DELETE`.
-- **Sem `ON DELETE CASCADE` para Colaboradores:** o SQL Server não permite cascata em tabela com trigger INSTEAD OF DELETE; a limpeza é feita na própria trigger.
-- **Exclusão de colaborador com tarefas abertas** inativa silenciosamente (sem erro), conforme o enunciado; a API deve devolver o resultado ("inativado" vs "excluído").
-- **Códigos de erro das procedures:** 50001 não encontrada, 50002 tarefa excluída, 50003 já concluída, 50004 colaborador inválido; a API os mapeia para 404/422/409/422.
+- **Status:** `Pendente`, `EmAndamento`, `Concluida`. Prioridade: `Baixa`, `Media`, `Alta`, `Urgente`.
 
-## Decisões das fases 2–8
-- **Migrations do EF Core não foram geradas** (exigem restaurar pacotes e a ferramenta `dotnet-ef`). O schema vale pelos scripts SQL. Para gerar uma baseline alinhada: `dotnet tool install -g dotnet-ef && dotnet ef migrations add Baseline -p src/Pim.Infrastructure -s src/Pim.Api` (e **não** aplicá-la sobre um banco criado pelos scripts). A API não executa `Migrate()`.
-- **Pacote `Microsoft.EntityFrameworkCore.InMemory`** na Infrastructure, usado só pelos testes de integração (`Database:Provider=InMemory`); repositórios têm ramo de fallback quando o provider não é relacional (procedures não existem no InMemory).
-- **Versionamento:** prefixo fixo `/api/v1` (sem `Asp.Versioning`).
-- **Validação:** FluentValidation aplicada automaticamente por `ValidacaoFilter` (400). Violação de regra de domínio → 422; conflito → 409.
-- **Exemplos no Swagger:** como `<remarks>` XML nos endpoints principais (sem pacote extra de exemplos).
-- **Rate limiting:** janela fixa por IP (geral 300/min; login/refresh 10/min, configurável em `RateLimit:*`). Atrás de proxy reverso, configure *forwarded headers*.
+## Conexão com o Supabase
+- `DB_CONNECTION` aceita a **URI do painel** (`postgresql://…`); `ConexaoBanco.Normalizar` converte para a connection string do Npgsql com `SSL Mode=Require` e `Trust Server Certificate=true`.
+- Use o **Session pooler** (host `aws-…pooler.supabase.com`, porta **5432**, usuário `postgres.<ref>`): funciona em redes IPv4. A conexão direta (`db.<ref>.supabase.co`) é IPv6 por padrão no plano gratuito. Evite o modo *transaction* (6543): a API usa transações e conexões persistentes.
+- Senha com caracteres especiais deve ir codificada na URI (`@` = `%40`).
+
+## Aplicação
+- **Migrations do EF Core não foram geradas**: o schema vale pelos scripts SQL e a API não executa `Migrate()`. Se for necessário: `dotnet ef migrations add Baseline -p src/Pim.Infrastructure -s src/Pim.Api` (sem aplicá-la sobre o banco criado pelos scripts).
+- **Pacote `Microsoft.EntityFrameworkCore.InMemory`** na Infrastructure, só para os testes de integração (`Database:Provider=InMemory`); os repositórios têm ramo de fallback quando o provider não é relacional.
+- **Versionamento:** prefixo fixo `/api/v1`. **Validação:** FluentValidation via `ValidacaoFilter` (400); regra de domínio ⇒ 422; conflito ⇒ 409.
+- **Rate limiting:** janela fixa por IP (geral 300/min; login/refresh 10/min; `RateLimit:*`). Atrás de proxy reverso, configure *forwarded headers*.
 - **Bloqueio de login:** 5 falhas ⇒ 15 min (`Auth:MaxTentativas`, `Auth:BloqueioMinutos`).
-- **Sync mobile:** tarefa reatribuída a outra pessoa não é removida do cache do colaborador anterior até nova sincronização completa (limitação conhecida, documentada em `mobile/README.md`).
-- **Docker:** TLS não é terminado no container (`Seguranca__ForcarHttps=false`); em produção, use proxy reverso com HTTPS.
-- **CI:** `dotnet format --verify-no-changes` roda como não bloqueante até a base ser formatada uma vez.
+- **Sync mobile:** tarefa reatribuída a outra pessoa não é removida do cache do colaborador anterior até nova sincronização completa (limitação conhecida).
+
+## Infra
+- **Docker:** `Dockerfile` da API (multi-stage, usuário não-root) e `docker-compose.yml` só com a API. `docker-compose.localdb.yml` (opcional) sobe um PostgreSQL local para desenvolvimento sem internet. TLS não é terminado no container (`Seguranca__ForcarHttps=false`); em produção real use proxy reverso com HTTPS.
+- **CI:** build, testes e `dotnet format` (não bloqueante até a base ser formatada uma vez); build da imagem; job `database-scripts` roda `pim_completo.sql` duas vezes + teste de fumaça em um PostgreSQL de serviço.
 
 ## Separação em três repositórios
-- `pim-backend` (esta API + banco + Docker + CI), `pim-frontend` (web estático servido por nginx) e `pim-mobile` (Expo). O front é outra origem: a API **não** serve mais `wwwroot`, usa CORS (`CORS_ORIGINS`) e a CSP da API é `default-src 'none'` (a CSP do front é definida pelo nginx do front).
-- Contrato entre os repositórios: apenas a API REST `/api/v1` (ver `docs/API.md` e `/swagger`).
+- `pim-backend` (esta API + banco), `pim-frontend` (web estático servido por nginx) e `pim-mobile` (Expo). O front é outra origem: a API **não** serve arquivos estáticos, usa CORS (`CORS_ORIGINS`) e a CSP da API é `default-src 'none'`. Contrato entre os repositórios: a API REST `/api/v1` (`docs/API.md`, `/swagger`).
