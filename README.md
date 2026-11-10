@@ -106,7 +106,7 @@ docker compose -f docker-compose.yml -f docker-compose.localdb.yml up --build
 Sobe um PostgreSQL local já com o `pim_completo.sql` aplicado (na primeira vez).
 
 ## Subindo os três projetos juntos
-
+1. **Backend** (este repositório): `docker compose up --build` → porta **5000**.
 2. **Frontend** ([pim-frontend](../pim-frontend)): porta **8080** → http://localhost:8080
 3. **Mobile** ([pim-mobile](../pim-mobile)): `npx expo start`, com `EXPO_PUBLIC_API_URL` apontando para o **IP da sua máquina** (não `localhost`).
 
