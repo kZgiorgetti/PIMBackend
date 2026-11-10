@@ -1,0 +1,12 @@
+{
+  "name": "pim-gestao-almoxarifado",
+  "version": "1.0.0",
+  "description": "Sistema de gerenciamento de tarefas de almoxarifado com Node.js, Express e arquivos JSON",
+  "main": "backend/server.js",
+  "scripts": {
+    "start": "node backend/server.js"
+  },
+  "dependencies": {
+    "express": "^4.18.4"
+  }
+}

@@ -1,0 +1,23 @@
+[
+  {
+    "id": 2,
+    "titulo": "Tarefa teste",
+    "descricao": "",
+    "status": "pendente",
+    "colaborador_id": 3
+  },
+  {
+    "id": 3,
+    "titulo": "Tarefa 2",
+    "descricao": "Descrição da tarefa 2",
+    "status": "completed",
+    "colaborador_id": 3
+  },
+  {
+    "id": 4,
+    "titulo": "Tarefa 3",
+    "descricao": "",
+    "status": "pendente",
+    "colaborador_id": null
+  }
+]

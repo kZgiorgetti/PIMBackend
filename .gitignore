@@ -1,0 +1,10 @@
+node_modules/
+bin/
+obj/
+.env
+appsettings.Development.json
+*.user
+.vs/
+.idea/
+mobile/node_modules/
+mobile/.expo/

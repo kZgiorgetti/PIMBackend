@@ -1,0 +1,10 @@
+**/bin/
+**/obj/
+**/node_modules/
+.git/
+mobile/
+legacy-node/
+tests/
+docs/
+.env
+**/appsettings.Development.json

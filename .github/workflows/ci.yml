@@ -1,0 +1,43 @@
+name: CI
+on:
+  push:
+  pull_request:
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with: { dotnet-version: "8.0.x" }
+      - run: dotnet restore Pim.sln
+      - run: dotnet build Pim.sln -c Release --no-restore
+      - run: dotnet test Pim.sln -c Release --no-build --verbosity normal
+      # Verificação de estilo: não bloqueia o pipeline até a base ser formatada uma vez (rode `dotnet format Pim.sln` localmente).
+      - run: dotnet format Pim.sln --verify-no-changes --no-restore
+        continue-on-error: true
+
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build -t pim-api:ci .
+
+  database-scripts:
+    runs-on: ubuntu-latest
+    services:
+      sqlserver:
+        image: mcr.microsoft.com/mssql/server:2022-latest
+        env:
+          ACCEPT_EULA: "Y"
+          MSSQL_SA_PASSWORD: "Ci_Senha#12345"
+        ports: ["1433:1433"]
+        options: >-
+          --health-cmd "/opt/mssql-tools18/bin/sqlcmd -C -S localhost -U sa -P Ci_Senha#12345 -Q 'SELECT 1'"
+          --health-interval 10s --health-timeout 5s --health-retries 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Executa pim_completo.sql duas vezes (idempotência)
+        run: |
+          docker run --rm --network host -v "$PWD/database:/scripts:ro" mcr.microsoft.com/mssql-tools \
+            /bin/bash -c '/opt/mssql-tools/bin/sqlcmd -S localhost -U sa -P "Ci_Senha#12345" -I -b -i /scripts/pim_completo.sql && /opt/mssql-tools/bin/sqlcmd -S localhost -U sa -P "Ci_Senha#12345" -I -b -i /scripts/pim_completo.sql'
