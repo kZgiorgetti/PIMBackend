@@ -17,12 +17,6 @@ jobs:
       - run: dotnet format Pim.sln --verify-no-changes --no-restore
         continue-on-error: true
 
-  docker:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - run: docker build -t pim-api:ci .
-
   database-scripts:
     runs-on: ubuntu-latest
     services:

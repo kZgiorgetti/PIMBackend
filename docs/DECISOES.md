@@ -27,8 +27,8 @@
 - **Sync mobile:** tarefa reatribuída a outra pessoa não é removida do cache do colaborador anterior até nova sincronização completa (limitação conhecida).
 
 ## Infra
-- **Docker:** `Dockerfile` da API (multi-stage, usuário não-root) e `docker-compose.yml` só com a API. `docker-compose.localdb.yml` (opcional) sobe um PostgreSQL local para desenvolvimento sem internet. TLS não é terminado no container (`Seguranca__ForcarHttps=false`); em produção real use proxy reverso com HTTPS.
-- **CI:** build, testes e `dotnet format` (não bloqueante até a base ser formatada uma vez); build da imagem; job `database-scripts` roda `pim_completo.sql` duas vezes + teste de fumaça em um PostgreSQL de serviço.
+- **Execução:** a API é executada diretamente pelo .NET 8; o banco PostgreSQL é hospedado no Supabase. TLS é configurado conforme o ambiente; em produção real use proxy reverso com HTTPS.
+- **CI:** build, testes e `dotnet format` (não bloqueante até a base ser formatada uma vez); job `database-scripts` roda `pim_completo.sql` duas vezes + teste de fumaça em um PostgreSQL de serviço.
 
 ## Separação em três repositórios
 - `pim-backend` (esta API + banco), `pim-frontend` (web estático servido por nginx) e `pim-mobile` (Expo). O front é outra origem: a API **não** serve arquivos estáticos, usa CORS (`CORS_ORIGINS`) e a CSP da API é `default-src 'none'`. Contrato entre os repositórios: a API REST `/api/v1` (`docs/API.md`, `/swagger`).

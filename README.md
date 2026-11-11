@@ -1,138 +1,83 @@
 # PIM IV — Backend (ASP.NET Core 8 + PostgreSQL/Supabase)
 
-API REST em camadas para gerenciamento de **colaboradores e tarefas** (UNIP / ADS — PIM IV).
-É a base dos outros dois repositórios: **pim-frontend** (web) e **pim-mobile** (Expo). O contrato entre eles é a API `/api/v1`.
-
-```
-src/Pim.Api            Controllers, Program.cs, middlewares, Swagger
-src/Pim.Application    Services, DTOs, validators, interfaces
-src/Pim.Domain         Entidades, enums, regras de negócio
-src/Pim.Infrastructure EF Core (Npgsql), repositórios, JWT, BCrypt
-tests/Pim.Tests        xUnit (domínio, serviços, autenticação, integração)
-database/              Scripts PostgreSQL (pim_completo.sql) e teste de fumaça
-legacy-node/           Backend Node antigo (referência)
-docs/                  ARQUITETURA, API, DECISOES, MER
-```
+API REST em camadas para gerenciamento de colaboradores e tarefas. É consumida pelos projetos independentes [PIMFrontend](https://github.com/kZgiorgetti/PIMFrontend) e [PIMMobile](https://github.com/kZgiorgetti/PIMMobile), por meio da API `/api/v1`.
 
 ## Pré-requisitos
 
-| Para                                   | Precisa de                                                     |
-| -------------------------------------- | -------------------------------------------------------------- |
-| Qualquer forma de rodar                | Conta gratuita no [Supabase](https://supabase.com)             |
-| Rodar com Docker                       | Docker Desktop (ou Docker Engine + Compose v2)                 |
-| Rodar sem Docker / testes              | [.NET SDK 8](https://dotnet.microsoft.com/download/dotnet/8.0) |
-| Opcional (aplicar o SQL pelo terminal) | `psql` (cliente do PostgreSQL)                                 |
+- Ubuntu/Linux e [.NET SDK 8](https://dotnet.microsoft.com/download/dotnet/8.0).
+- Um projeto PostgreSQL no [Supabase](https://supabase.com).
+- `psql` (opcional, para aplicar scripts SQL pelo terminal).
 
-## Passo 1 — Criar o banco no Supabase
+Confira a instalação do SDK com `dotnet --version`; a versão principal deve ser `8`.
 
-1. No Supabase, crie um projeto (**guarde a senha do banco**).
-2. Abra **SQL Editor → New query**, cole todo o conteúdo de `database/pim_completo.sql` e clique em **Run**.
-   O script é idempotente: pode ser executado de novo sem problemas.
-   _(Alternativa pelo terminal:_ `psql "<URI>" -v ON_ERROR_STOP=1 -f database/pim_completo.sql`_)_
-3. Clique em **Connect** (topo do painel), escolha **Session pooler** e copie a URI, parecida com:
-   `postgresql://postgres.abcdefghij:[YOUR-PASSWORD]@aws-0-sa-east-1.pooler.supabase.com:5432/postgres`
-   - Troque `[YOUR-PASSWORD]` pela senha do banco. Se ela tiver caracteres especiais, codifique-os na URI (`@` → `%40`, `#` → `%23`, `/` → `%2F`).
-   - Use o **Session pooler** (porta 5432): funciona em redes IPv4. A conexão direta (`db.<ref>.supabase.co`) é IPv6 por padrão no plano gratuito e costuma dar timeout. Evite o _Transaction pooler_ (6543).
+## Configurar o Supabase
 
-## Passo 2 — Configurar
+1. Crie um projeto no Supabase e guarde a senha do banco.
+2. No **SQL Editor**, execute o conteúdo de `database/pim_completo.sql`. O script é idempotente. Alternativamente, use `psql "<URI>" -v ON_ERROR_STOP=1 -f database/pim_completo.sql`.
+3. Em **Connect**, copie a URI do **Session pooler** (porta `5432`, usuário `postgres.<ref>`). Esse modo funciona em redes IPv4. Codifique caracteres especiais da senha na URI (por exemplo, `@` como `%40`).
 
-```bash
-cp .env.example .env
-```
+## Configurar e executar a API
 
-Edite o `.env`:
-
-| Variável                         | O que é                                                                                               |
-| -------------------------------- | ----------------------------------------------------------------------------------------------------- |
-| `DB_CONNECTION`                  | A URI do Session pooler (passo 1.3)                                                                   |
-| `ADMIN_EMAIL` / `ADMIN_PASSWORD` | Primeiro usuário Admin, criado pela API no primeiro start (senha com 8+ caracteres, letras e números) |
-| `JWT_SECRET`                     | Texto aleatório com 32+ caracteres (assina os tokens)                                                 |
-| `CORS_ORIGINS`                   | URL(s) do front, separadas por vírgula. Padrão: `http://localhost:8080`                               |
-
-Gerar um segredo: `openssl rand -base64 48`.
-
-## Passo 3 — Rodar a API
-
-### Opção A — Docker
-
-```bash
-docker compose up --build
-```
-
-### Opção B — .NET (sem Docker)
-
-O `dotnet run` **não lê o `.env`**; use o arquivo de configuração local (ignorado pelo git):
+Crie a configuração local a partir do modelo:
 
 ```bash
 cp src/Pim.Api/appsettings.Development.json.example src/Pim.Api/appsettings.Development.json
-# edite o arquivo: DB_CONNECTION, JWT_SECRET, ADMIN_EMAIL, ADMIN_PASSWORD, CORS_ORIGINS
+```
+
+Edite `appsettings.Development.json` e configure:
+
+- `DB_CONNECTION`: URI do Session pooler copiada do Supabase.
+- `JWT_SECRET`: segredo aleatório com pelo menos 32 caracteres (gere com `openssl rand -base64 48`).
+- `ADMIN_EMAIL` e `ADMIN_PASSWORD`: credenciais usadas para criar o primeiro administrador no primeiro início. Use uma senha com pelo menos 8 caracteres, letras e números.
+- `CORS_ORIGINS`: origens autorizadas, separadas por vírgula. Para desenvolvimento web, o padrão é `http://localhost:8080`.
+
+O `dotnet run` carrega `appsettings.Development.json` quando o ambiente Development está ativo, como nos perfis do `launchSettings.json`. Inicie a API na raiz do repositório:
+
+```bash
 dotnet run --project src/Pim.Api
 ```
 
-Para testar com o **app mobile em um celular real**, a API precisa escutar na rede (e o firewall deve permitir a porta 5000):
+Para permitir acesso de um celular na rede local, inicie com o perfil `rede` e permita a porta `5000` no firewall:
 
 ```bash
 dotnet run --project src/Pim.Api --launch-profile rede
 ```
 
-### Conferir
+O aplicativo mobile deve usar o IP da máquina que executa a API em `EXPO_PUBLIC_API_URL`, não `localhost`. Não é necessário modificar os projetos Frontend ou Mobile.
 
-- http://localhost:5000/swagger — documentação interativa (`/` redireciona para cá)
-- http://localhost:5000/health — deve responder `Healthy`
-- Se o banco estiver inacessível, a API tenta se conectar por ~45 s e registra os avisos no console.
+## Swagger e health check
 
-## Passo 4 — Primeiro acesso e usuários de teste
+- Swagger: <http://localhost:5000/swagger>
+- Health check: <http://localhost:5000/health>
 
-Não há senhas fixas no repositório. Entre como o Admin do `.env` e crie os demais perfis:
+A raiz <http://localhost:5000/> redireciona para o Swagger. Se o banco não estiver acessível, a inicialização tenta conectar por aproximadamente 45 segundos e registra avisos no console.
 
-**Pelo Swagger:** `POST /api/v1/auth/login` → copie o `accessToken` → botão **Authorize** → cole o token → use `POST /api/v1/usuarios`.
+## Testes automatizados
 
-**Pelo terminal:**
-
-```bash
-TOKEN=$(curl -s -X POST http://localhost:5000/api/v1/auth/login -H "Content-Type: application/json" \
-  -d '{"email":"admin@pim.local","senha":"SUA_SENHA"}' | jq -r .accessToken)
-
-curl -X POST http://localhost:5000/api/v1/usuarios -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
-  -d '{"nome":"Gestora","email":"gestor@pim.local","senha":"Senha@123","perfil":"Gestor"}'
-curl -X POST http://localhost:5000/api/v1/usuarios -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
-  -d '{"nome":"Ana","email":"ana@pim.local","senha":"Senha@123","perfil":"Colaborador"}'
-```
-
-Um usuário **Colaborador** já ganha um colaborador vinculado e só vê/altera as próprias tarefas. Mais exemplos em [docs/API.md](docs/API.md).
-
-## Testes
+Na raiz do repositório:
 
 ```bash
-dotnet restore Pim.sln
-dotnet build Pim.sln
-dotnet test Pim.sln            # unidade + integração (usa banco em memória; não precisa de Supabase)
+dotnet restore
+dotnet build
+dotnet test
 ```
 
-Teste do banco (opcional; roda em transação e desfaz tudo):
+Os testes automatizados usam banco em memória e não precisam de acesso ao Supabase. Os testes SQL opcionais também podem ser executados contra o Supabase:
 
 ```bash
 psql "<URI>" -v ON_ERROR_STOP=1 -f database/tests/smoke_test.sql
 ```
 
-## Subindo os três projetos juntos
+## Solução de problemas
 
-1. **Backend** (este repositório): `docker compose up --build` → porta **5000**.
-2. **Frontend** ([pim-frontend](../pim-frontend)): porta **8080** → http://localhost:8080
-3. **Mobile** ([pim-mobile](../pim-mobile)): `npx expo start`, com `EXPO_PUBLIC_API_URL` apontando para o **IP da sua máquina** (não `localhost`).
+| Sintoma | Causa / solução |
+| --- | --- |
+| Timeout ou `Network is unreachable` ao conectar ao banco | Use a URI do Session pooler; a conexão direta pode depender de IPv6. |
+| `password authentication failed` | Confira a senha e codifique os caracteres especiais na URI. |
+| Erro informando que `JWT_SECRET` não foi definido | Configure um segredo com pelo menos 32 caracteres. |
+| Erro informando que `DB_CONNECTION` não foi definido | Confira `src/Pim.Api/appsettings.Development.json` e o ambiente `Development`. |
+| Erro de CORS no navegador | Inclua a origem exata do frontend em `CORS_ORIGINS` e reinicie a API. |
+| `relation "pim.usuarios" does not exist` | Execute `database/pim_completo.sql` no Supabase. |
+| Não consegue autenticar como Admin | O Admin só é criado quando ainda não há usuários; defina `ADMIN_EMAIL` e `ADMIN_PASSWORD` antes do primeiro início. |
 
-## Problemas comuns
-
-| Sintoma                                                 | Causa / solução                                                                                                            |
-| ------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
-| Timeout / `Network is unreachable` ao conectar no banco | Está usando a conexão direta (IPv6). Use a URI do **Session pooler**                                                       |
-| `password authentication failed`                        | Senha errada ou com caractere especial sem codificar na URI                                                                |
-| `Defina JWT_SECRET ...` ao iniciar                      | `JWT_SECRET` ausente ou com menos de 32 caracteres                                                                         |
-| `Defina DB_CONNECTION ...`                              | Variável não definida (Docker: `.env`; sem Docker: `appsettings.Development.json`)                                         |
-| Erro de **CORS** no navegador                           | Inclua exatamente a origem do front em `CORS_ORIGINS` (`http://localhost` ≠ `http://127.0.0.1`) e reinicie a API           |
-| `relation "pim.usuarios" does not exist`                | O `pim_completo.sql` ainda não foi executado no Supabase                                                                   |
-| Não consigo logar como Admin                            | O Admin só é criado se **não existir** nenhum; `ADMIN_EMAIL`/`ADMIN_PASSWORD` precisavam estar definidos no primeiro start |
-| 429 Too Many Requests                                   | Limite de requisições por minuto (login: 10/min). Aguarde 1 minuto                                                         |
-| Conta bloqueada                                         | 5 senhas erradas bloqueiam por 15 min                                                                                      |
-
-Decisões técnicas (incluindo a migração para o Supabase): [docs/DECISOES.md](docs/DECISOES.md) · Arquitetura: [docs/ARQUITETURA.md](docs/ARQUITETURA.md) · MER: [docs/MER.md](docs/MER.md).
+Arquitetura: [docs/ARQUITETURA.md](docs/ARQUITETURA.md) · Contrato da API: [docs/API.md](docs/API.md) · Decisões: [docs/DECISOES.md](docs/DECISOES.md) · MER: [docs/MER.md](docs/MER.md).
