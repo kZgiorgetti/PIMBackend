@@ -15,6 +15,16 @@ using Pim.Infrastructure.Persistencia;
 using Pim.Infrastructure.Seguranca;
 
 var builder = WebApplication.CreateBuilder(args);
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("MobileCors", policy =>
+    {
+        policy
+            .WithOrigins("http://localhost:5001")
+            .AllowAnyHeader()
+            .AllowAnyMethod();
+    });
+});
 var cfg = builder.Configuration;
 
 builder.Services.AddApplication();
@@ -98,6 +108,7 @@ builder.Services.AddSwaggerGen(o =>
 builder.Services.AddHealthChecks().AddDbContextCheck<PimDbContext>("banco");
 
 var app = builder.Build();
+app.UseCors("MobileCors");
 
 // ---------- Inicialização (Admin inicial) ----------
 if (cfg.GetValue("Bootstrap:Habilitado", true))
