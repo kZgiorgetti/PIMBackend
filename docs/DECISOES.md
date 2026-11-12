@@ -31,4 +31,4 @@
 - **CI:** build, testes e `dotnet format` (não bloqueante até a base ser formatada uma vez); job `database-scripts` roda `pim_completo.sql` duas vezes + teste de fumaça em um PostgreSQL de serviço.
 
 ## Separação em três repositórios
-- `pim-backend` (esta API + banco), `pim-frontend` (web estático servido por nginx) e `pim-mobile` (Expo). O front é outra origem: a API **não** serve arquivos estáticos, usa CORS (`CORS_ORIGINS`) e a CSP da API é `default-src 'none'`. Contrato entre os repositórios: a API REST `/api/v1` (`docs/API.md`, `/swagger`).
+- `PIMBackend` (esta API + banco), `PIMFrontend` (aplicação Web) e `PIMMobile` (Flutter). O front é outra origem: a API **não** serve arquivos estáticos, usa CORS (`CORS_ORIGINS`) e a CSP da API é `default-src 'none'`. Contrato entre os repositórios: a API REST `/api/v1` (`docs/API.md`, `/swagger`).

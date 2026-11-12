@@ -1,203 +1,168 @@
-﻿# PIM IV — Backend
+# PIMBackend
 
-Backend do PIM IV, projeto acadêmico voltado ao gerenciamento de colaboradores, equipes e tarefas. Esta aplicação disponibiliza uma API REST para os clientes Web e Mobile do projeto.
-
-O Backend centraliza as regras de negócio, autenticação, autorização e acesso aos dados. O PIMFrontend e o PIMMobile são aplicações independentes e consomem a mesma API, usando o prefixo `/api/v1`.
+Backend do Projeto Integrador Multidisciplinar (PIM IV), voltado ao gerenciamento de colaboradores, equipes e tarefas. Expõe uma API REST que centraliza as regras de negócio, autenticação JWT e acesso ao PostgreSQL. Os clientes Web e Flutter consomem a API pelo prefixo `/api/v1`.
 
 ## Tecnologias
 
-- **C# e ASP.NET Core 8** para a API REST.
-- **Entity Framework Core 8** para persistência e acesso a dados.
-- **PostgreSQL 15+**, hospedado no **Supabase**. O esquema e os objetos do banco são definidos pelos scripts SQL em `database/`.
-- **Npgsql** e **EFCore.NamingConventions** para conexão PostgreSQL e nomes `snake_case`.
-- **JWT Bearer** para autenticação própria da API; o Supabase Auth não é utilizado.
-- **BCrypt.Net-Next** para hash de senhas.
-- **FluentValidation** para validação de requisições.
-- **Swagger/OpenAPI (Swashbuckle)** para documentação interativa.
-- **ASP.NET Core Health Checks** para verificar a saúde da aplicação e do banco.
-- **xUnit** e **Microsoft.AspNetCore.Mvc.Testing** para testes automatizados.
+- C# e ASP.NET Core 8 para a API.
+- Entity Framework Core 8 e Npgsql para persistência em PostgreSQL.
+- Supabase como hospedagem do PostgreSQL.
+- JWT Bearer para autenticação própria da API (não usa Supabase Auth).
+- BCrypt.Net-Next, FluentValidation, Swagger/OpenAPI e Health Checks.
+- xUnit e ASP.NET Core MVC Testing para testes.
 
 ## Arquitetura e pastas
 
-A solução `Pim.sln` separa a aplicação em camadas: `Pim.Api` recebe requisições HTTP; `Pim.Application` contém serviços, DTOs e validações; `Pim.Domain` concentra entidades e regras de domínio; e `Pim.Infrastructure` implementa persistência, repositórios e segurança.
+`Pim.sln` organiza a API em camadas: `Pim.Api` contém a entrada HTTP, controllers e middlewares; `Pim.Application` contém casos de uso, DTOs e validações; `Pim.Domain` contém entidades e regras de domínio; `Pim.Infrastructure` implementa persistência, repositórios e segurança. A API é executada diretamente pelo .NET e o PostgreSQL é hospedado no Supabase.
 
-| Pasta | Conteúdo |
+| Caminho | Conteúdo |
 | --- | --- |
-| `src/` | Projetos da API e das camadas Application, Domain e Infrastructure. |
-| `tests/` | Projeto `Pim.Tests`, com testes de domínio, serviços e integração HTTP. |
-| `database/` | Scripts do esquema, procedures, triggers, segurança, dados iniciais e teste SQL. `pim_completo.sql` reúne a instalação do banco. |
-| `docs/` | Documentação da arquitetura, contrato da API, decisões técnicas e modelo de dados. |
-| `.github/` | Workflow de CI para restaurar, compilar e testar a solução e validar os scripts SQL. |
+| `src/Pim.Api/` | API, configuração, controllers, middlewares e perfis de execução. |
+| `src/Pim.Application/` | Serviços, DTOs, interfaces e validações. |
+| `src/Pim.Domain/` | Entidades e regras do domínio. |
+| `src/Pim.Infrastructure/` | EF Core, PostgreSQL, repositórios e segurança. |
+| `tests/Pim.Tests/` | Testes automatizados .NET. |
+| `database/` | Schema e scripts SQL; `pim_completo.sql` reúne a instalação. |
+| `docs/` | Arquitetura, contrato da API, decisões e modelo de dados. |
+| `.github/workflows/` | Integração contínua. |
 
 ## Pré-requisitos
 
-- Windows, Linux ou macOS compatível com .NET 8.
 - [.NET SDK 8](https://dotnet.microsoft.com/download/dotnet/8.0).
-- Uma conta no [Supabase](https://supabase.com) e um projeto com banco PostgreSQL.
-- `psql` é opcional; pode ser usado para executar os scripts SQL pelo terminal.
+- Projeto PostgreSQL no [Supabase](https://supabase.com).
+- `psql` somente se preferir executar os scripts SQL pelo terminal.
 
-Verifique o SDK instalado:
+Confira o SDK com `dotnet --version`; a versão principal deve ser `8`. Os comandos abaixo partem da raiz deste repositório.
 
-```bash
-dotnet --version
-```
+## Configurar Supabase e PostgreSQL
 
-A versão principal exibida deve ser `8`. Os comandos `dotnet` desta documentação devem ser executados na raiz do repositório, salvo quando indicado o contrário.
+1. Crie um projeto Supabase e defina a senha do banco.
+2. No painel, abra **Connect** e obtenha a conexão **Session pooler**. Para redes IPv4, use o host `...pooler.supabase.com`, porta `5432` e usuário `postgres.<referência-do-projeto>`. A aplicação não foi configurada para o Transaction Pooler.
+3. Execute o script inicial `database/pim_completo.sql` pelo SQL Editor do Supabase. O arquivo reúne o schema, procedures, triggers, segurança e dados iniciais. Não é necessário executar também os scripts componentes.
 
-## Banco de dados no Supabase
-
-1. Crie um projeto no Supabase e defina uma senha para o banco. Guarde-a com segurança.
-2. Abra o **SQL Editor** do projeto e execute o conteúdo de `database/pim_completo.sql`. Esse script reúne o esquema, as procedures, triggers, dados iniciais e configurações de segurança; é idempotente, podendo ser executado novamente.
-3. Alternativamente, com `psql` instalado, execute da raiz do repositório:
-
-   ```bash
-   psql "<URI_DO_SESSION_POOLER>" -v ON_ERROR_STOP=1 -f database/pim_completo.sql
-   ```
-
-4. No painel do Supabase, abra **Connect** e copie a conexão **Session pooler**. Use o host `...pooler.supabase.com`, a porta `5432` e o usuário no formato `postgres.<referência-do-projeto>`. O Session Pooler é indicado para redes IPv4. A API não usa o modo Transaction Pooler.
-5. Insira a senha do banco na URI. Caracteres especiais devem ser codificados para URL: por exemplo, `@` como `%40`. Não compartilhe nem publique essa URI.
-
-Exemplo ilustrativo, com valores fictícios:
-
-```text
-postgresql://postgres.PROJECT_REF:SENHA_CODIFICADA@aws-0-regiao.pooler.supabase.com:5432/postgres
-```
-
-A API normaliza a URI do painel e configura SSL para a conexão. Se não conectar, confira host, porta, usuário, senha codificada, acesso à rede e se o script SQL foi executado. Mensagens como `password authentication failed` indicam credenciais incorretas; timeout ou `Network is unreachable` podem indicar host/método de conexão inadequado. Consulte os logs da API e as configurações de conexão do Supabase.
-
-## Configuração local do Backend
-
-Crie o arquivo de desenvolvimento a partir do exemplo, na raiz do repositório:
+Alternativamente, com `psql`:
 
 ```bash
-cp src/Pim.Api/appsettings.Development.json.example src/Pim.Api/appsettings.Development.json
+psql "<URI_DO_SESSION_POOLER>" -v ON_ERROR_STOP=1 -f database/pim_completo.sql
 ```
 
-No PowerShell, o comando equivalente é:
+Use uma URI no formato `postgresql://usuario:senha@host:5432/postgres`. Codifique caracteres reservados na senha (por exemplo, `@` como `%40`). `DB_CONNECTION` aceita essa URI ou uma connection string Npgsql; a aplicação converte a URI e exige SSL para a conexão Supabase. Não publique a senha.
+
+## Configuração local
+
+Copie o exemplo de configuração:
 
 ```powershell
 Copy-Item src/Pim.Api/appsettings.Development.json.example src/Pim.Api/appsettings.Development.json
 ```
 
-Edite o arquivo criado e substitua os valores de exemplo:
+Edite `src/Pim.Api/appsettings.Development.json` com os valores do seu ambiente. O arquivo local está ignorado pelo Git.
 
-| Configuração | Finalidade |
+| Configuração | Uso |
 | --- | --- |
-| `DB_CONNECTION` | URI do PostgreSQL no Supabase, preferencialmente do Session Pooler. |
-| `JWT_SECRET` | Chave usada para assinar e validar tokens JWT. Deve ter pelo menos 32 caracteres. Gere uma chave aleatória; por exemplo, `openssl rand -base64 48`. |
-| `ADMIN_EMAIL` | E-mail usado para criar o primeiro usuário administrador, quando ainda não há Admin no banco. |
-| `ADMIN_PASSWORD` | Senha inicial desse administrador. Use uma senha forte. O hash é gerado pela aplicação. |
-| `CORS_ORIGINS` | Origens web autorizadas pelo CORS, separadas por vírgula e sem barra final. Exemplo: `http://localhost:8080`. |
+| `DB_CONNECTION` | URI do Session pooler ou connection string Npgsql do PostgreSQL. |
+| `JWT_SECRET` | Segredo para assinatura JWT, com pelo menos 32 caracteres. Use um valor aleatório e privado. |
+| `ADMIN_EMAIL` | E-mail do administrador inicial criado pela API se ainda não houver usuário Admin. |
+| `ADMIN_PASSWORD` | Senha desse administrador inicial; a aplicação armazena o hash. |
+| `CORS_ORIGINS` | Lista de origens web autorizadas, separadas por vírgula, sem caminhos ou barra final. |
 
-Exemplo fictício:
+O exemplo já traz as origens locais:
 
-```json
-{
-  "DB_CONNECTION": "postgresql://postgres.PROJECT_REF:SENHA_CODIFICADA@aws-0-regiao.pooler.supabase.com:5432/postgres",
-  "JWT_SECRET": "segredo-local-ficticio-com-mais-de-32-caracteres",
-  "ADMIN_EMAIL": "admin@exemplo.local",
-  "ADMIN_PASSWORD": "Senha-Ficticia-123",
-  "CORS_ORIGINS": "http://localhost:8080"
-}
+```text
+http://localhost:8080,http://localhost:5001
 ```
 
-O administrador inicial só é criado se o banco ainda não tiver um usuário com perfil Admin. Defina e guarde as credenciais antes da primeira execução. `appsettings.Development.json` está listado no `.gitignore`: mantenha nele apenas segredos locais e nunca envie arquivos com credenciais, tokens ou senhas ao GitHub.
+Elas correspondem ao Frontend e ao Flutter Web, respectivamente. Para gerar um segredo JWT local, pode usar `openssl rand -base64 48`. Não coloque credenciais reais em documentação ou no controle de versão.
 
-## Restaurar, compilar e executar
+## Executar a API
 
-Na raiz do repositório:
+Restaure, compile e inicie:
 
 ```bash
 dotnet restore Pim.sln
 dotnet build Pim.sln
-dotnet run --project src/Pim.Api/Pim.Api.csproj
-```
-
-O perfil `http` está configurado para `http://localhost:5000` e define o ambiente `Development`, que carrega `appsettings.Development.json`. Para selecioná-lo explicitamente:
-
-```bash
 dotnet run --project src/Pim.Api/Pim.Api.csproj --launch-profile http
 ```
 
-Há também o perfil `rede`, que escuta em todas as interfaces da máquina na porta `5000`:
+O perfil `http` executa em `http://localhost:5000` e define `Development`, carregando o arquivo de configuração acima. Na inicialização, a API conecta ao banco e tenta criar o administrador inicial quando necessário.
+
+## Acesso na rede local
+
+Para permitir que outros dispositivos na mesma rede alcancem a API, inicie pelo perfil `rede`:
 
 ```bash
 dotnet run --project src/Pim.Api/Pim.Api.csproj --launch-profile rede
 ```
 
-Use `rede` quando outro dispositivo na mesma rede precisar acessar a API. No firewall do computador, permita conexões de entrada na porta `5000` e use o endereço IP local do computador servidor, por exemplo `http://192.168.1.20:5000`. O IP é apenas um exemplo; descubra o endereço da sua rede.
+Esse perfil escuta em `0.0.0.0:5000`. Permita a porta 5000 no firewall e acesse usando o IP local do computador que executa a API, por exemplo `http://192.168.1.20:5000`. O endereço `localhost` só aponta para a própria máquina de cada dispositivo.
 
-A aplicação tenta conectar ao banco e pode repetir a inicialização por até 15 tentativas, com intervalos de 3 segundos. Se o banco não estiver acessível, verifique os logs do terminal e a configuração do Supabase.
+## Frontend e Mobile
 
-## Integração com Frontend e Mobile
+Os clientes separados consomem a mesma API e enviam o JWT em `Authorization: Bearer` nas rotas protegidas. O contrato e os exemplos estão em [docs/API.md](docs/API.md).
 
-Frontend e Mobile são clientes separados: cada um envia requisições HTTP à API em `/api/v1`, incluindo o token JWT no cabeçalho `Authorization: Bearer` quando a rota exigir autenticação. Os endpoints e exemplos estão em [docs/API.md](docs/API.md).
+- [Repositório Frontend (PIMFrontend)](https://github.com/kZgiorgetti/PIMFrontend)
+- [Repositório Mobile Flutter (PIMMobile)](https://github.com/kZgiorgetti/PIMMobile)
 
-Para o Frontend Web, configure em `CORS_ORIGINS` a origem exata em que ele é servido, como `http://localhost:8080`. Para mais de uma origem, separe-as por vírgulas, por exemplo `http://localhost:8080,https://web.exemplo.com`. Reinicie a API após alterar a configuração. CORS é uma política aplicada por navegadores; um cliente Mobile nativo não depende dela como um navegador, embora ainda precise alcançar o endereço da API.
+No computador de desenvolvimento, o Frontend pode chamar `http://localhost:5000/api/v1`. Para Flutter Web, a origem local esperada é `http://localhost:5001`, que já consta em `CORS_ORIGINS`. Para um dispositivo Flutter na rede local, configure a base da API para o IP da máquina servidora, por exemplo `http://192.168.1.20:5000/api/v1`.
 
-No mesmo computador, `localhost` aponta para a própria máquina e pode ser usado pelo cliente local. Em um celular na rede local, use o IP local do computador e execute a API com o perfil `rede`. Em ambientes remotos como FlutLab, `localhost` aponta para o próprio ambiente remoto, não para seu computador. Para testes externos, exponha temporariamente a porta local usando um túnel:
+### Local, rede local e ferramentas remotas
+
+- **API local:** o perfil `http` escuta em `localhost:5000`; clientes no mesmo computador acessam essa URL.
+- **Rede local:** o perfil `rede` escuta nas interfaces da máquina; outros dispositivos da mesma rede usam o IP local do computador e precisam de conectividade pela porta 5000.
+- **Ferramenta remota, como FlutLab:** ela não consegue acessar o `localhost` nem o IP privado do seu computador. Use uma URL pública HTTPS fornecida por um túnel ou hospedagem acessível publicamente, e configure-a no Flutter pela variável `PIM_API_URL`, conforme o formato esperado pelo aplicativo. Para um túnel local, exemplos são `ngrok http 5000` ou `cloudflared tunnel --url http://localhost:5000`, caso essas ferramentas estejam instaladas e configuradas. URLs temporárias podem mudar.
+
+Uma URL pública HTTPS permite que a ferramenta remota alcance sua API; CORS é relevante para clientes executados em navegadores e não substitui conectividade de rede nem autenticação. Não embuta `DB_CONNECTION` ou `JWT_SECRET` nos clientes.
+
+## CORS
+
+A API usa somente a política `Padrao`. `CORS_ORIGINS` aceita uma ou várias origens exatas separadas por vírgula. A configuração permite qualquer header e método para as origens listadas, sem liberar qualquer origem indiscriminadamente. A política é aplicada antes da autenticação e autorização para que também responda às requisições preflight `OPTIONS`.
+
+Valores locais incluídos em `appsettings.Development.json.example`:
+
+- `http://localhost:8080` — Frontend.
+- `http://localhost:5001` — Flutter Web.
+
+Inclua a origem exata usada pelo navegador, incluindo protocolo e porta, e reinicie a API após mudar a configuração. Clientes Flutter nativos não aplicam as restrições CORS do navegador, mas ainda precisam alcançar a URL da API.
+
+## Swagger e Health Check
+
+- Swagger UI: <http://localhost:5000/swagger>
+- Health Check: <http://localhost:5000/health> (inclui verificação do banco)
+- Raiz: <http://localhost:5000/> (redireciona para o Swagger)
+- Prefixo dos endpoints: `/api/v1`
+
+## Testes
+
+Os testes .NET não dependem do banco Supabase:
 
 ```bash
-ngrok http 5000
-```
-
-ou, com o Cloudflare Tunnel instalado e autenticado conforme a configuração do ambiente:
-
-```bash
-cloudflared tunnel --url http://localhost:5000
-```
-
-Use a URL HTTPS pública fornecida pelo túnel como base da API no cliente Flutter, configurando a variável **`PIM_API_URL`** (com o sufixo `/api/v1` conforme o formato esperado pelo cliente). A URL temporária pode mudar ao reiniciar o túnel. Não coloque segredos do banco ou `JWT_SECRET` no aplicativo cliente.
-
-## Endpoints e documentação da API
-
-- Swagger: <http://localhost:5000/swagger>
-- Health check: <http://localhost:5000/health> — inclui verificação do banco de dados.
-- Prefixo da API: `/api/v1`.
-- Contrato, recursos, exemplos e autenticação: [docs/API.md](docs/API.md).
-
-A raiz <http://localhost:5000/> redireciona para o Swagger. Consulte o contrato existente antes de integrar novos recursos; este README não substitui a documentação detalhada da API.
-
-## Testes e validação
-
-Na raiz do repositório, execute:
-
-```bash
-dotnet restore Pim.sln
-dotnet build Pim.sln
 dotnet test Pim.sln
 ```
 
-Os testes .NET usam um provedor EF Core InMemory e uma aplicação de teste configurada para o ambiente `Testing`; não dependem do Supabase. O banco real não é necessário para esses testes.
-
-Há também um teste SQL opcional para triggers, procedures e restrições. Ele precisa de um PostgreSQL com o esquema preparado; para executá-lo contra o Supabase, rode da raiz:
+O teste SQL opcional `database/tests/smoke_test.sql` exige PostgreSQL com o schema preparado. Ele pode ser executado contra o banco configurado com:
 
 ```bash
 psql "<URI_DO_SESSION_POOLER>" -v ON_ERROR_STOP=1 -f database/tests/smoke_test.sql
 ```
 
-O teste executa em transação e desfaz suas alterações com `ROLLBACK`. O workflow em `.github/workflows/ci.yml` também valida os scripts em um PostgreSQL temporário.
-
 ## Problemas comuns
 
-| Sintoma | Possíveis causas | Soluções |
-| --- | --- | --- |
-| SDK .NET não encontrado ou versão incompatível | .NET SDK 8 não instalado ou não disponível no `PATH`. | Instale o SDK 8, abra um novo terminal e confira `dotnet --version`. |
-| Projeto ou caminho `.csproj` não encontrado | Comando executado fora da raiz ou caminho digitado incorretamente. | Volte à raiz do repositório e use `src/Pim.Api/Pim.Api.csproj`; confira os nomes com `Get-ChildItem` ou `ls`. |
-| Perfil de inicialização inexistente | Nome diferente dos perfis declarados no `launchSettings.json`. | Use `http` ou `rede`, definidos em `src/Pim.Api/Properties/launchSettings.json`. |
-| Erro de conexão com Supabase, timeout ou `Network is unreachable` | Host incorreto, indisponibilidade de rede ou uso de conexão direta incompatível com a rede. | Confira **Connect** no Supabase e use o Session Pooler na porta `5432`; valide a rede e o estado do projeto. |
-| `password authentication failed` ou outra falha de senha/connection string | Senha, usuário ou URI incorretos; caracteres especiais sem codificação. | Confira a URI copiada, usuário `postgres.<referência>`, senha e codificação URL de caracteres especiais. |
-| `JWT_SECRET` ausente ou inválido | Chave não configurada ou com menos de 32 caracteres. | Preencha `JWT_SECRET` no arquivo de Development com uma chave aleatória de pelo menos 32 caracteres. |
-| `DB_CONNECTION` ausente | Arquivo local não criado, valor vazio ou ambiente Development não ativo. | Copie o `.example`, configure a URI e execute pelo perfil `http` ou `rede`. |
-| Erro de CORS no navegador | Origem do Frontend ausente ou divergente em protocolo, host ou porta. | Inclua a origem exata em `CORS_ORIGINS` e reinicie a API. Não inclua caminhos da URL. |
-| Porta 5000 já utilizada | Outro processo está escutando na porta configurada. | Encerre o processo que ocupa a porta ou ajuste a porta em `launchSettings.json` e acesse a nova URL. |
-| Swagger indisponível | API não iniciou, porta diferente ou erro durante inicialização/conexão com banco. | Confira o terminal, confirme o endereço/porta e valide `DB_CONNECTION`; tente `/swagger` após a API iniciar. |
-| Endpoint `/health` indisponível ou retorna falha | API fora do ar ou verificação do banco falhou. | Confira os logs e a conectividade ao PostgreSQL; `/health` também verifica o banco. |
-| Não consegue autenticar o administrador | Admin ainda não criado, credenciais diferentes ou usuário bloqueado após tentativas falhas. | Confirme `ADMIN_EMAIL` e `ADMIN_PASSWORD` usados na primeira inicialização. Se já houver Admin, a inicialização não redefine sua senha; use o fluxo autorizado de redefinição ou a administração existente. |
+| Sintoma | O que verificar |
+| --- | --- |
+| SDK ausente ou incompatível | Instale .NET SDK 8, reabra o terminal e confira `dotnet --version`. |
+| Erro ou timeout ao conectar ao Supabase | Confira host, porta, usuário e projeto em **Connect**; use Session pooler na porta 5432 e valide a rede. |
+| Falha de autenticação PostgreSQL | Confira a senha e codifique caracteres reservados na URI. |
+| `DB_CONNECTION` ausente | Crie o `appsettings.Development.json`, preencha a conexão e rode no perfil `http` ou `rede`. |
+| `JWT_SECRET` ausente/inválido | Configure um segredo privado com pelo menos 32 caracteres. |
+| Erro CORS no navegador | Confira protocolo, host e porta da página e adicione a origem exata a `CORS_ORIGINS`; reinicie a API. |
+| Outro dispositivo não acessa a API | Use o perfil `rede`, o IP local do servidor e libere a porta 5000 no firewall. `localhost` não identifica outro computador. |
+| FlutLab não alcança a API | Use uma URL pública HTTPS e defina `PIM_API_URL` no Flutter; endereços localhost e IPs privados não são roteáveis pela ferramenta remota. |
+| Porta 5000 ocupada | Encerre o processo que usa a porta ou ajuste `applicationUrl` em `src/Pim.Api/Properties/launchSettings.json`. |
+| `/health` indica falha | A rota verifica também o PostgreSQL; confira conectividade e logs da aplicação. |
 
 ## Documentação complementar
 
 - [Arquitetura](docs/ARQUITETURA.md)
 - [Contrato e exemplos da API](docs/API.md)
 - [Decisões técnicas](docs/DECISOES.md)
-- [Modelo entidade-relacionamento e dicionário de dados](docs/MER.md)
+- [Modelo entidade-relacionamento e dicionário](docs/MER.md)

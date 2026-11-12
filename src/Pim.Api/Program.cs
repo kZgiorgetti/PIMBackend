@@ -57,7 +57,7 @@ builder.Services.AddAuthorization();
 var origens = (cfg["CORS_ORIGINS"] ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 builder.Services.AddCors(o => o.AddPolicy("Padrao", p =>
 {
-    if (origens.Length > 0) p.WithOrigins(origens).AllowAnyHeader().AllowAnyMethod();
+    p.WithOrigins(origens).AllowAnyHeader().AllowAnyMethod();
 }));
 
 // ---------- Rate limiting ----------

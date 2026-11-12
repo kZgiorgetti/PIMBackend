@@ -3,5 +3,5 @@
   "JWT_SECRET": "chave-local-de-desenvolvimento-com-mais-de-32-caracteres",
   "ADMIN_EMAIL": "admin@pim.local",
   "ADMIN_PASSWORD": "Admin@12345",
-  "CORS_ORIGINS": "http://localhost:8080"
+  "CORS_ORIGINS": "http://localhost:8080,http://localhost:5001"
 }
