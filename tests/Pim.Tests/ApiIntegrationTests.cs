@@ -5,6 +5,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.Extensions.Logging;
 using Pim.Application.Dtos;
 using Pim.Domain.Enums;
 
@@ -14,6 +15,7 @@ public class ApiFactory : WebApplicationFactory<Program>
 {
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
+        builder.ConfigureLogging(logging => logging.ClearProviders());
         builder.UseEnvironment("Testing");
         builder.UseSetting("Database:Provider", "InMemory");
         builder.UseSetting("Database:InMemoryName", Guid.NewGuid().ToString());
@@ -107,9 +109,9 @@ public class ApiIntegrationTests : IClassFixture<ApiFactory>
             .Content.ReadFromJsonAsync<ColaboradorResponse>(Json))!;
 
         var tAna = (await (await admin.PostAsJsonAsync("/api/v1/tarefas",
-            new CriarTarefaRequest("Tarefa da Ana", colaboradorId: ana.ColaboradorId), Json)).Content.ReadFromJsonAsync<TarefaResponse>(Json))!;
+            new CriarTarefaRequest("Tarefa da Ana", ColaboradorId: ana.ColaboradorId), Json)).Content.ReadFromJsonAsync<TarefaResponse>(Json))!;
         var tBruno = (await (await admin.PostAsJsonAsync("/api/v1/tarefas",
-            new CriarTarefaRequest("Tarefa do Bruno", colaboradorId: outro.Id), Json)).Content.ReadFromJsonAsync<TarefaResponse>(Json))!;
+            new CriarTarefaRequest("Tarefa do Bruno", ColaboradorId: outro.Id), Json)).Content.ReadFromJsonAsync<TarefaResponse>(Json))!;
 
         var anaCli = await ClienteAsync("ana@teste.local", "Senha@123");
 

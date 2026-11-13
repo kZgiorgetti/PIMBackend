@@ -23,7 +23,6 @@ Backend do Projeto Integrador Multidisciplinar (PIM IV), voltado ao gerenciament
 | `src/Pim.Infrastructure/` | EF Core, PostgreSQL, repositórios e segurança. |
 | `tests/Pim.Tests/` | Testes automatizados .NET. |
 | `database/` | Schema e scripts SQL; `pim_completo.sql` reúne a instalação. |
-| `docs/` | Arquitetura, contrato da API, decisões e modelo de dados. |
 | `.github/workflows/` | Integração contínua. |
 
 ## Pré-requisitos
@@ -98,7 +97,7 @@ Esse perfil escuta em `0.0.0.0:5000`. Permita a porta 5000 no firewall e acesse 
 
 ## Frontend e Mobile
 
-Os clientes separados consomem a mesma API e enviam o JWT em `Authorization: Bearer` nas rotas protegidas. O contrato e os exemplos estão em [docs/API.md](docs/API.md).
+Os clientes separados consomem a mesma API e enviam o JWT em `Authorization: Bearer` nas rotas protegidas. O Swagger em `/swagger` apresenta os endpoints e seus contratos.
 
 - [Repositório Frontend (PIMFrontend)](https://github.com/kZgiorgetti/PIMFrontend)
 - [Repositório Mobile Flutter (PIMMobile)](https://github.com/kZgiorgetti/PIMMobile)
@@ -160,9 +159,3 @@ psql "<URI_DO_SESSION_POOLER>" -v ON_ERROR_STOP=1 -f database/tests/smoke_test.s
 | Porta 5000 ocupada | Encerre o processo que usa a porta ou ajuste `applicationUrl` em `src/Pim.Api/Properties/launchSettings.json`. |
 | `/health` indica falha | A rota verifica também o PostgreSQL; confira conectividade e logs da aplicação. |
 
-## Documentação complementar
-
-- [Arquitetura](docs/ARQUITETURA.md)
-- [Contrato e exemplos da API](docs/API.md)
-- [Decisões técnicas](docs/DECISOES.md)
-- [Modelo entidade-relacionamento e dicionário](docs/MER.md)

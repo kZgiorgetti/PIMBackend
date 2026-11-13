@@ -76,7 +76,7 @@ public class TarefaServiceTests
     {
         ComoGestor();
         Assert.Equal(2, (await _svc.ListarAsync(new TarefaFiltro())).Total);
-        var nova = await _svc.CriarAsync(new CriarTarefaRequest("Nova", colaboradorId: 2));
+        var nova = await _svc.CriarAsync(new CriarTarefaRequest("Nova", ColaboradorId: 2));
         Assert.Equal("Nova", nova.Titulo);
     }
 
@@ -84,7 +84,7 @@ public class TarefaServiceTests
     public async Task Criar_ColaboradorInexistente_LancaValidacao()
     {
         ComoGestor();
-        await Assert.ThrowsAsync<ValidationException>(() => _svc.CriarAsync(new CriarTarefaRequest("Nova", colaboradorId: 99)));
+        await Assert.ThrowsAsync<ValidationException>(() => _svc.CriarAsync(new CriarTarefaRequest("Nova", ColaboradorId: 99)));
     }
 
     [Fact]
